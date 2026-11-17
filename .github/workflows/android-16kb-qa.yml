@@ -1,0 +1,157 @@
+name: ShowCase Android runtime verification
+
+on:
+  push:
+    branches: [codex/showcase-android-16kb-build29-qa]
+    paths: [.github/workflows/android-16kb-qa.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  android-runtime:
+    name: Android 16 KB runtime
+    if: github.repository == 'Dobbs3313/ShowCase-releases' && github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      QA_DRAFT_ID: '448381906'
+      QA_DRAFT_TAG: 'showcase-qa-android-build29-f2470b6b750b'
+      QA_INDEX_SHA256: '3311894ca42bda41c20b95d8f5ec6ef054578e465a1cbc842c49ad6f0011b109'
+    steps:
+      - name: Fetch only the authenticated unpublished inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
+          runtime_root=$(mktemp -d "$RUNNER_TEMP/showcase-android-runtime.XXXXXX")
+          mkdir "$runtime_root/input" "$runtime_root/logs" "$runtime_root/harness"
+          {
+            printf 'SHOWCASE_RUNTIME_ROOT=%s\n' "$runtime_root"
+            printf 'SHOWCASE_PREFLIGHT_JSON=%s/preflight.json\n' "$runtime_root"
+            printf 'SHOWCASE_EXISTING_SDK=%s\n' "$ANDROID_SDK_ROOT"
+          } >> "$GITHUB_ENV"
+          base="repos/$GITHUB_REPOSITORY/releases"
+          gh api "$base/$QA_DRAFT_ID" > "$runtime_root/input/draft-metadata.json"
+          release_json="$runtime_root/input/draft-metadata.json"
+          jq -e --arg tag "$QA_DRAFT_TAG" --arg owner "$GITHUB_REPOSITORY_OWNER" \
+            '.draft and .tag_name == $tag and .author.login == $owner' "$release_json" >/dev/null
+          download_asset() {
+            local name=$1 expected=$2 asset
+            asset=$(jq -er --arg name "$name" --arg digest "sha256:$expected" --arg owner "$GITHUB_REPOSITORY_OWNER" '
+              [.assets[] | select(.name == $name and .digest == $digest and .state == "uploaded" and .uploader.login == $owner)] |
+              select(length == 1) | .[0].id' "$release_json")
+            gh api --header 'Accept: application/octet-stream' "$base/assets/$asset" > "$runtime_root/input/$name"
+            printf '%s  %s\n' "$expected" "$runtime_root/input/$name" | sha256sum --status -c -
+          }
+          download_asset qa-index.json "$QA_INDEX_SHA256"
+          for name in app-release.aab production-evidence.json native-evidence.json runtime-harness.tar.gz; do
+            expected=$(jq -er --arg name "$name" '.assetSha256[$name] | select(test("^[a-f0-9]{64}$"))' "$runtime_root/input/qa-index.json")
+            download_asset "$name" "$expected"
+          done
+          python3 - "$runtime_root" <<'PY'
+          import json, sys, tarfile
+          from pathlib import Path
+          root=Path(sys.argv[1]); source=root/'input'; index=json.loads((source/'qa-index.json').read_bytes())
+          production=json.loads((source/'production-evidence.json').read_bytes())
+          assert production['sourceCommit']==index['sourceCommit'] and production['workflowCommit']==index['signingCommit']
+          assert production['aabSha256']==index['assetSha256']['app-release.aab']
+          assert production['unsignedAabSha256']==index['unsignedAabSha256']
+          assert production['protectedUploadKeyMatch'] and production['jarsignerValid'] and production['signingPayloadUnchanged']
+          assert production['versionName']==index['versionName'] and production['versionCode']==index['versionCode']
+          assert production['releaseChannel']=='stable' and production['billingEnvironment']=='live' and not production['sovereignSyncEnabled']
+          required = {'scripts/verify_android_native_alignment.py','scripts/verify_android_production_aab.py',
+                      'tool/android_16kb_runtime/accept_approved_sdk_license.py','tool/android_16kb_runtime/preflight.py',
+                      'tool/android_16kb_runtime/install_sdk_avd.sh','tool/android_16kb_runtime/prepare_native.py',
+                      'tool/android_16kb_runtime/native_smoke.c','tool/android_16kb_runtime/run_on_existing_avd.py'}
+          with tarfile.open(source/'runtime-harness.tar.gz') as bundle:
+              members=bundle.getmembers(); assert len(members)==len(required) and {m.name for m in members}==required
+              assert all(m.isfile() for m in members)
+              bundle.extractall(root/'harness',filter='data')
+          PY
+          printf 'Unpublished inputs verified against source, signer and SHA-256.\n'
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify package and run the pinned Android 16 KB smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test -z "${GH_TOKEN:-}${GITHUB_TOKEN:-}"
+          work="$SHOWCASE_RUNTIME_ROOT"
+          cd "$work/harness"
+          exports="$work/input"
+          source_sha=$(jq -er '.sourceCommit | select(test("^[a-f0-9]{40}$"))' "$exports/qa-index.json")
+          export ANDROID_AVD_HOME="$work/avd"
+          export ANDROID_USER_HOME="$work/user-home"
+          export ANDROID_EMULATOR_HOME="$work/emulator-home"
+          export ADB_SERVER_SOCKET=tcp:127.0.0.1:5039
+          mkdir -p "$ANDROID_USER_HOME"
+          verify_and_test() {
+            test -c /dev/kvm
+            sudo chmod a+rw /dev/kvm
+            sudo rm -rf -- /usr/share/dotnet
+            python3 tool/android_16kb_runtime/accept_approved_sdk_license.py
+            "$SHOWCASE_EXISTING_SDK/cmdline-tools/latest/bin/sdkmanager" 'ndk;28.2.13676358' 'build-tools;36.0.0' 'emulator' </dev/null
+            python3 tool/android_16kb_runtime/preflight.py --sdk "$SHOWCASE_EXISTING_SDK" --work-root "$work" --output "$SHOWCASE_PREFLIGHT_JSON" --catalog-file "$work/catalog.xml"
+            zipalign="$SHOWCASE_EXISTING_SDK/build-tools/36.0.0/zipalign"
+            bundletool="$work/bundletool-all-1.18.3.jar"
+            python3 scripts/verify_android_production_aab.py "$exports/app-release.aab" \
+              --bundletool "$bundletool" --download-bundletool --zipalign "$zipalign" \
+              --native-evidence "$exports/native-evidence.json" --source-commit "$source_sha" \
+              --output "$work/runtime-packaging-evidence.json"
+            keytool -genkeypair -keystore "$work/runtime-test-only.jks" -alias runtime-test-only -storepass android -keypass android -dname 'CN=Isolated Runtime Test' -keyalg RSA -keysize 2048 -validity 3
+            java -jar "$bundletool" build-apks --bundle="$exports/app-release.aab" --output="$work/testonly.apks" --mode=universal --ks="$work/runtime-test-only.jks" --ks-key-alias=runtime-test-only --ks-pass=pass:android --key-pass=pass:android
+            unzip -p "$work/testonly.apks" universal.apk > "$work/testonly.apk"
+            "$zipalign" -c -P 16 -v 4 "$work/testonly.apk"
+            python3 tool/android_16kb_runtime/prepare_native.py --apk "$work/testonly.apk" --output "$work/native"
+            "$SHOWCASE_EXISTING_SDK/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android28-clang" \
+              tool/android_16kb_runtime/native_smoke.c -o "$work/native/native_smoke" -ldl -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
+            bash tool/android_16kb_runtime/install_sdk_avd.sh
+            adb="$work/sdk/platform-tools/adb"
+            "$adb" -P 5039 -s emulator-5554 root
+            "$adb" -P 5039 -s emulator-5554 wait-for-device
+            "$adb" -P 5039 -s emulator-5554 shell cmd connectivity airplane-mode enable
+            "$adb" -P 5039 -s emulator-5554 shell svc wifi disable
+            "$adb" -P 5039 -s emulator-5554 shell svc data disable
+            python3 tool/android_16kb_runtime/run_on_existing_avd.py --adb "$adb" --serial emulator-5554 --avd-name "$(cat "$work/avd-name.txt")" --apk "$work/testonly.apk" --native-dir "$work/native" --output "$work/evidence"
+          }
+          verify_and_test > "$work/logs/isolated-runtime.log" 2>&1
+          printf 'Pinned 16 KB device boot, protected bundle, native functions and application smoke passed.\n'
+      - name: Stop only the job-owned emulator
+        if: always() && env.SHOWCASE_RUNTIME_ROOT != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$SHOWCASE_RUNTIME_ROOT"
+          if [ -f "$root/avd-name.txt" ]; then
+            export ANDROID_AVD_HOME="$root/avd" ANDROID_USER_HOME="$root/user-home" ANDROID_EMULATOR_HOME="$root/emulator-home"
+            export ADB_SERVER_SOCKET=tcp:127.0.0.1:5039
+            adb="$root/sdk/platform-tools/adb"
+            actual=$("$adb" -P 5039 -s emulator-5554 emu avd name 2>/dev/null | head -1 || true)
+            if [ "$actual" = "$(cat "$root/avd-name.txt")" ]; then "$adb" -P 5039 -s emulator-5554 emu kill >/dev/null; fi
+            "$adb" -P 5039 kill-server >/dev/null || true
+          fi
+      - name: Return evidence only to the unpublished QA draft
+        if: always() && env.SHOWCASE_RUNTIME_ROOT != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$SHOWCASE_RUNTIME_ROOT"
+          base="repos/$GITHUB_REPOSITORY/releases"
+          gh api "$base/$QA_DRAFT_ID" | jq -e --arg tag "$QA_DRAFT_TAG" --arg owner "$GITHUB_REPOSITORY_OWNER" '.draft and .tag_name == $tag and .author.login == $owner' >/dev/null
+          evidence=()
+          for item in logs preflight.json sdk-license-approval.json runtime-packaging-evidence.json emulator.log evidence; do
+            if [ -e "$root/$item" ]; then evidence+=("$item"); fi
+          done
+          archive="$RUNNER_TEMP/android-16kb-qa-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.tar.gz"
+          tar -czf "$archive" -C "$root" "${evidence[@]}"
+          gh release upload "$QA_DRAFT_TAG" --repo "$GITHUB_REPOSITORY" "$archive" >/dev/null
+          printf 'Diagnostics retained privately.\n'
