@@ -1,0 +1,89 @@
+name: ShowCase iOS tutorial smoke
+
+on:
+  push:
+    branches:
+      - codex/showcase-ios27-tutorial-smoke
+
+permissions:
+  contents: write
+
+jobs:
+  tutorial:
+    runs-on: xcode-27
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        layout: [phone, tablet]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      CANDIDATE_SHA256: '87e35d433d4b1cbaa0d1210b46819f2e6631a5bc26d6ddb91de882426c7de566'
+      CANDIDATE_RELEASE: '448379552'
+      CANDIDATE_ASSET: '758366596'
+      CANDIDATE_BYTES: '126851443'
+    steps:
+      - name: Confirm the candidate and fetch the private simulator bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
+          test "$(uname -m)" = arm64
+          xcodebuild -version | grep -Fx 'Build version 27B52'
+          gh api "repos/$GITHUB_REPOSITORY/releases/$CANDIDATE_RELEASE" |
+            jq -e --arg sha "sha256:$CANDIDATE_SHA256" \
+              --argjson asset "$CANDIDATE_ASSET" --argjson bytes "$CANDIDATE_BYTES" '
+              .draft and .tag_name == "qa-ios27-tutorial-20261117-b28"
+              and any(.assets[]; .id == $asset and .digest == $sha and .size == $bytes)
+            ' > /dev/null
+          work="$RUNNER_TEMP/showcase-ios27"
+          mkdir -m 700 "$work"
+          cd "$work"
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/$GITHUB_REPOSITORY/releases/assets/$CANDIDATE_ASSET" > simulator.zip
+          printf '%s  %s\n' "$CANDIDATE_SHA256" simulator.zip | shasum -a 256 -c -
+          ditto -x -k simulator.zip .
+          xcrun lipo -verify_arch arm64 Runner.app/Runner
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' Runner.app/Info.plist)" = com.arisparty.showcase
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Runner.app/Info.plist)" = 1.1.3
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Runner.app/Info.plist)" = 28
+      - name: Run the normal tutorial and confirm a new matter persists
+        env:
+          LAYOUT: ${{ matrix.layout }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/showcase-ios27"
+          runtime=com.apple.CoreSimulator.SimRuntime.iOS-27-2
+          xcrun simctl list -j runtimes | jq -e --arg runtime "$runtime" \
+            'any(.runtimes[]; .identifier == $runtime and .isAvailable)' >/dev/null
+          case "$LAYOUT" in
+            phone) model='iPhone 18 Pro'; pattern='iPhone 18 Pro' ;;
+            tablet) model='iPad'; pattern='iPad Pro 11-inch' ;;
+            *) exit 2 ;;
+          esac
+          device_type="$(xcrun simctl list -j devicetypes | jq -er --arg pattern "$pattern" \
+            '[.devicetypes[] | select(.name | startswith($pattern))][0].identifier')"
+          device="$(xcrun simctl create "ShowCase QA $model" "$device_type" "$runtime")"
+          cleanup() {
+            xcrun simctl shutdown "$device" || true
+            xcrun simctl delete "$device" || true
+          }
+          trap cleanup EXIT
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b > boot.log 2>&1
+          xcrun simctl install "$device" Runner.app
+          status=0
+          xcodebuild test-without-building -xctestrun Harness/Tests.xctestrun \
+            -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO \
+            -only-testing:ShowCaseTestFlightUITests/ShowCaseDistributionUITests/testDistributionTrialPreparationSmoke \
+            -resultBundlePath tutorial.xcresult > tutorial.log 2>&1 || status=$?
+          grep -E 'Test Case.*(started|passed|failed)|Executed [0-9]+ tests?|\*\* TEST (SUCCEEDED|FAILED)|error:.*(Simulator|did not|failed|XCTAssert)' tutorial.log | tail -30 || true
+          if test -d tutorial.xcresult; then
+            xcrun xcresulttool get test-results summary --path tutorial.xcresult --compact |
+              jq '{result, totalTestCount, passedTests, failedTests, devices: [.devicesAndConfigurations[]?.device | {modelName,osVersion}]}'
+          fi
+          test "$status" = 0
+          grep -Eq 'Executed 1 test, with 0 failures' tutorial.log
