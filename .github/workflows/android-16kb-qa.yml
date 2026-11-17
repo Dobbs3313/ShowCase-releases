@@ -2,7 +2,7 @@ name: ShowCase Android runtime verification
 
 on:
   push:
-    branches: [codex/showcase-android-16kb-build29-qa]
+    branches: [codex/showcase-android-16kb-build30-qa]
     paths: [.github/workflows/android-16kb-qa.yml]
 
 permissions:
@@ -15,9 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
-      QA_DRAFT_ID: '448381906'
-      QA_DRAFT_TAG: 'showcase-qa-android-build29-f2470b6b750b'
-      QA_INDEX_SHA256: '3311894ca42bda41c20b95d8f5ec6ef054578e465a1cbc842c49ad6f0011b109'
+      QA_EXPECTED_SOURCE: '48d27bec6ea1ad221684d1e367356912cb41ef26'
+      QA_EXPECTED_VERSION: '1.1.6'
+      QA_EXPECTED_BUILD: '30'
+      QA_DRAFT_ID: '448545890'
+      QA_DRAFT_TAG: 'showcase-qa-android-build30-18166b7054fd'
+      QA_INDEX_SHA256: '11f0492b2619fb85bd511a8a6560d86373fe81de6cd727967ae3a09c1c7b29c8'
     steps:
       - name: Fetch only the authenticated unpublished inputs
         env:
@@ -27,6 +30,9 @@ jobs:
           set -euo pipefail
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
+          test -n "${QA_DRAFT_ID:?Exact owned runtime draft required}"
+          test -n "${QA_DRAFT_TAG:?Exact owned runtime tag required}"
+          test -n "${QA_INDEX_SHA256:?Exact runtime input index digest required}"
           runtime_root=$(mktemp -d "$RUNNER_TEMP/showcase-android-runtime.XXXXXX")
           mkdir "$runtime_root/input" "$runtime_root/logs" "$runtime_root/harness"
           {
@@ -53,10 +59,13 @@ jobs:
             download_asset "$name" "$expected"
           done
           python3 - "$runtime_root" <<'PY'
-          import json, sys, tarfile
+          import json, os, sys, tarfile
           from pathlib import Path
           root=Path(sys.argv[1]); source=root/'input'; index=json.loads((source/'qa-index.json').read_bytes())
           production=json.loads((source/'production-evidence.json').read_bytes())
+          assert index['sourceCommit']==os.environ['QA_EXPECTED_SOURCE']
+          assert index['versionName']==os.environ['QA_EXPECTED_VERSION']
+          assert index['versionCode']==int(os.environ['QA_EXPECTED_BUILD'])
           assert production['sourceCommit']==index['sourceCommit'] and production['workflowCommit']==index['signingCommit']
           assert production['aabSha256']==index['assetSha256']['app-release.aab']
           assert production['unsignedAabSha256']==index['unsignedAabSha256']
@@ -120,9 +129,23 @@ jobs:
             "$adb" -P 5039 -s emulator-5554 shell svc wifi disable
             "$adb" -P 5039 -s emulator-5554 shell svc data disable
             python3 tool/android_16kb_runtime/run_on_existing_avd.py --adb "$adb" --serial emulator-5554 --avd-name "$(cat "$work/avd-name.txt")" --apk "$work/testonly.apk" --native-dir "$work/native" --output "$work/evidence"
+            jq -e '
+              .page_size == 16384 and .abi == "x86_64" and .api == "36"
+              and .compat_properties["bionic.linker.16kb.app_compat.enabled"] == "false"
+              and .compat_properties["pm.16kb.app_compat.disabled"] == "true"
+              and .isar_case_created_saved_reopened
+              and .tutorial_accessibility.phone.closeReachedStep5
+              and .tutorial_accessibility.phone.openInEvidenceClosedPreview
+              and .tutorial_accessibility.phone.openedPageNumber == 2
+              and (.tutorial_accessibility.phone.guideActions | length) == 2
+              and .tutorial_accessibility.tablet.widthDp == 800
+              and (.tutorial_accessibility.tablet.guideActions | length) == 2
+              and (.tutorial_accessibility.tablet.ordinaryRailTargetsPx | length) == 7
+              and .tutorial_accessibility.tablet.ordinaryEvidenceAndTimelineRoutesVerified
+            ' "$work/evidence/runtime-evidence.json" >/dev/null
           }
           verify_and_test > "$work/logs/isolated-runtime.log" 2>&1
-          printf 'Pinned 16 KB device boot, protected bundle, native functions and application smoke passed.\n'
+          printf 'Exact protected Android 1.1.6 (30) passed native 16 KB, phone preview, and tablet navigation.\n'
       - name: Stop only the job-owned emulator
         if: always() && env.SHOWCASE_RUNTIME_ROOT != ''
         shell: bash
