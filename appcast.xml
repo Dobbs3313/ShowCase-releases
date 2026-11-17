@@ -5,28 +5,28 @@
         <description>Most recent updates to ShowCase</description>
         <language>en</language>
         <item>
-            <title>Version 1.1.6</title>
-            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.6</sparkle:releaseNotesLink>
-            <pubDate>Tue, 17 Nov 2026 08:57:45 +0000</pubDate>
-            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.6/ShowCase-Windows-x64-Setup.exe"
-                       sparkle:dsaSignature="MEQCIBSRqBXbKX0bbTPDiIw7NbX5YfHAAeCl3pot7SUqd+fEAiAEhkL+lobZLocG+F9lV2jRDJq+xcxH1FpA8O0X0B7qDA=="
-                       sparkle:version="1.1.6+29"
-                       sparkle:shortVersionString="1.1.6"
+            <title>Version 1.1.7</title>
+            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.7</sparkle:releaseNotesLink>
+            <pubDate>Tue, 17 Nov 2026 11:20:34 +0000</pubDate>
+            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.7/ShowCase-Windows-x64-Setup.exe"
+                       sparkle:dsaSignature="MEYCIQCaIflgwpjpRkiBwKDhr+wY2UWUsFTjTPOPT+2l/lN9TAIhAMchJ/HokkHzCRZhyY2wfnwNrOf6U42vqBIlk6S0yYNg"
+                       sparkle:version="1.1.7+30"
+                       sparkle:shortVersionString="1.1.7"
                        sparkle:os="windows"
-                       length="192429200"
+                       length="192433536"
                        type="application/octet-stream" />
         </item>
         <item>
-            <title>Version 1.1.6</title>
-            <sparkle:version>29</sparkle:version>
-            <sparkle:shortVersionString>1.1.6</sparkle:shortVersionString>
+            <title>Version 1.1.7</title>
+            <sparkle:version>30</sparkle:version>
+            <sparkle:shortVersionString>1.1.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>10.15.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.6</sparkle:releaseNotesLink>
-            <pubDate>Tue, 17 Nov 2026 08:57:45 +0000</pubDate>
-            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.6/ShowCase-macOS-universal.zip"
-                       sparkle:edSignature="eqH/8s+dIRyzQB7Nzc5MR8WTf/kgp5NWLB4PQ1Et7E4lsaS+8P67aQCat3rMwV2OaqS0Ixaz288zHGys29kACg=="
+            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.7</sparkle:releaseNotesLink>
+            <pubDate>Tue, 17 Nov 2026 11:20:34 +0000</pubDate>
+            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.7/ShowCase-macOS-universal.zip"
+                       sparkle:edSignature="z50/wrK8iOgxRAO0D37lPrchCv1aNTyWTwwlTxNmGsIPLQVSwmYxeEEHRE3z+QK7dMJsiIClREzxwjCwWdgDAQ=="
                        sparkle:os="macos"
-                       length="287495917"
+                       length="287488684"
                        type="application/octet-stream" />
         </item>
     </channel>
