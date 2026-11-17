@@ -55,3 +55,9 @@ jobs:
         run: |
           bash scripts/check-macos-release.sh "$RUNNER_TEMP/showcase-release/ShowCase.app" \
             "$EXPECTED_ARCHITECTURE" "$EXPECTED_MAJOR"
+      - name: Check RGB and native pixel decoding on Intel
+        if: matrix.architecture == 'x86_64'
+        shell: bash
+        run: |
+          python3 scripts/diagnose-rgb-clip.py "$RUNNER_TEMP/showcase-release/ShowCase.app" \
+            "$RUNNER_TEMP/showcase-color-diagnostic" --arch x86_64
