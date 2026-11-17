@@ -6,7 +6,7 @@ on:
       - codex/showcase-macos-release-smoke
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   signed-runtime:
@@ -17,9 +17,9 @@ jobs:
           - runner: macos-15-intel
             architecture: x86_64
             major: '15'
-          - runner: macos-14
+          - runner: macos-15
             architecture: arm64
-            major: '14'
+            major: '15'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
     env:
