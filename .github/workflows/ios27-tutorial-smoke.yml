@@ -18,10 +18,10 @@ jobs:
         layout: [phone, tablet]
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-      CANDIDATE_SHA256: '59ab5152ec5d5cd558fe0f6a6e66acca8919ffd789ac6b0535beba6cff2d8291'
+      CANDIDATE_SHA256: '52499fa4d877b1b7c580fe76f772c6523db9d5110689a4d8305e289bab7239c8'
       CANDIDATE_RELEASE: '448402349'
-      CANDIDATE_ASSET: '758432711'
-      CANDIDATE_BYTES: '126845219'
+      CANDIDATE_ASSET: '758475025'
+      CANDIDATE_BYTES: '126846582'
     steps:
       - name: Confirm the candidate and fetch the private simulator bundle
         env:
