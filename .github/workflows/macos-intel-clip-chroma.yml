@@ -1,0 +1,45 @@
+name: Diagnose bundled macOS Intel clip chroma
+
+on:
+  push:
+    branches: [codex/showcase-intel-clip-chroma]
+
+permissions:
+  contents: read
+
+jobs:
+  intel-chroma:
+    runs-on: macos-15-intel
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Extract exact publicly released signed FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          mkdir -m 700 "$RUNNER_TEMP/chroma"
+          cd "$RUNNER_TEMP/chroma"
+          curl --fail --silent --show-error --location --retry 2 -o ShowCase.zip \
+            https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.6/ShowCase-macOS-universal.zip
+          echo '80a3b3a53f192636fb17af8bd8fb506e903e592b6e3a22eab42ad07758ce5ab0  ShowCase.zip' | shasum -a 256 -c -
+          unzip -p ShowCase.zip ShowCase.app/Contents/Resources/bin/ffmpeg > ffmpeg
+          chmod 700 ffmpeg
+          ./ffmpeg -version | head -n 3
+      - name: Isolate RGB conversion, encoder, and decoder
+        shell: bash
+        run: |
+          python3 scripts/diagnose-intel-chroma.py "$RUNNER_TEMP/chroma/ffmpeg" \
+            "$RUNNER_TEMP/chroma/result" --repeats 6
+      - name: Retain only synthetic encoded samples and readbacks
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macos-intel-clip-chroma
+          path: |
+            ${{ runner.temp }}/chroma/result/diagnostic.json
+            ${{ runner.temp }}/chroma/result/samples/*.mp4
+          retention-days: 3
+          if-no-files-found: error
