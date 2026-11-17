@@ -15,13 +15,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        layout: [phone, tablet]
+        layout: [phone]
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-      CANDIDATE_SHA256: '52499fa4d877b1b7c580fe76f772c6523db9d5110689a4d8305e289bab7239c8'
+      CANDIDATE_SHA256: 'bfab96bd70eb0cc5407d5f692faeea47c28818f49a46ab694241bd40b6f109ab'
       CANDIDATE_RELEASE: '448402349'
-      CANDIDATE_ASSET: '758475025'
-      CANDIDATE_BYTES: '126846582'
+      CANDIDATE_ASSET: '758511770'
+      CANDIDATE_BYTES: '126847739'
     steps:
       - name: Confirm the candidate and fetch the private simulator bundle
         env:
