@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
     env:
-      CANDIDATE_SHA256: 80a3b3a53f192636fb17af8bd8fb506e903e592b6e3a22eab42ad07758ce5ab0
+      CANDIDATE_SHA256: 9754c7efb722ae5948df2070597e8812968c2afbe8a0dbda9124079d36fc9e18
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
@@ -35,16 +35,16 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
-          gh api "repos/$GITHUB_REPOSITORY/releases/448333990" |
+          gh api "repos/$GITHUB_REPOSITORY/releases/448491034" |
             jq -e --arg digest "sha256:$CANDIDATE_SHA256" '
-              .draft and .tag_name=="v1.1.6"
-              and any(.assets[]; .id==758284015 and .digest==$digest and .size==287495917)
+              .draft and .tag_name=="v1.1.7"
+              and any(.assets[]; .id==758668990 and .digest==$digest and .size==287490183)
             ' >/dev/null
           work="$RUNNER_TEMP/showcase-release"
           mkdir -p "$work"
           cd "$work"
           gh api --header 'Accept: application/octet-stream' \
-            "repos/$GITHUB_REPOSITORY/releases/assets/758284015" > ShowCase-macOS-universal.zip
+            "repos/$GITHUB_REPOSITORY/releases/assets/758668990" > ShowCase-macOS-universal.zip
           printf '%s  %s\n' "$CANDIDATE_SHA256" ShowCase-macOS-universal.zip | shasum -a 256 -c -
           /usr/bin/ditto -x -k ShowCase-macOS-universal.zip .
       - name: Check the signed app and offline media on this host

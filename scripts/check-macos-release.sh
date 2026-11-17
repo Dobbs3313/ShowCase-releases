@@ -11,8 +11,8 @@ printf 'Native runtime %s %s\n' "$expected_arch" "$runtime_version"
 
 plist="$bundle/Contents/Info.plist"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.dobbs.showcase
-test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = 1.1.6
-test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = 29
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = 1.1.7
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = 30
 xcrun stapler validate "$bundle"
 codesign --verify --deep --strict "$bundle"
 spctl --assess --type execute --verbose=2 "$bundle"
