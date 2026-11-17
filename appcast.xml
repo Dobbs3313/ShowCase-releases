@@ -17,16 +17,16 @@
                        type="application/octet-stream" />
         </item>
         <item>
-            <title>Version 1.1.3</title>
-            <sparkle:version>26</sparkle:version>
-            <sparkle:shortVersionString>1.1.3</sparkle:shortVersionString>
+            <title>Version 1.1.4</title>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>1.1.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>10.15.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.3</sparkle:releaseNotesLink>
-            <pubDate>Tue, 17 Nov 2026 00:20:56 +0000</pubDate>
-            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.3/ShowCase-macOS-universal.zip"
-                       sparkle:edSignature="/Tt9I4Wc+PdyF8gma+2/tXJeRThcO5s0MMApRkmqGb0LINjV3WRCO8OkQ4L9tloxeOIWOX4Y/O9VnGr8D01fAg=="
+            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.4</sparkle:releaseNotesLink>
+            <pubDate>Tue, 17 Nov 2026 03:23:56 +0000</pubDate>
+            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.4/ShowCase-macOS-universal.zip"
+                       sparkle:edSignature="W8mfpTFk7peMRLIZwA/HC+yP0ckPvF3xKl3CaGVbafRpFcTrFsGMdWL6rcW81enjEFCDdgd1ZiUBqrGIHQD2BQ=="
                        sparkle:os="macos"
-                       length="287927244"
+                       length="287925784"
                        type="application/octet-stream" />
         </item>
     </channel>
