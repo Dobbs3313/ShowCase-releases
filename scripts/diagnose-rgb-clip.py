@@ -166,6 +166,22 @@ def main():
             f"Saved format: {saved_video['codec_name']} {saved_video['pix_fmt']} "
             f"at {saved_video['time_base']}, {saved_video['nb_read_packets']} video packets"
         )
+        planar = tool(
+            "ffmpeg", "-v", "error", "-nostdin", "-ignore_editlist", "1", "-i", str(clip),
+            "-map", "0:v:0", "-fps_mode:v", "passthrough", "-pix_fmt", "yuv420p",
+            "-f", "rawvideo", "pipe:1",
+        )
+        luma_bytes = WIDTH * HEIGHT
+        frame_bytes = luma_bytes * 3 // 2
+        assert len(planar) == frame_bytes * len(expected_clip)
+        native_luma = b"".join(
+            planar[start:start+luma_bytes] for start in range(0,len(planar),frame_bytes)
+        )
+        chroma = b"".join(
+            planar[start+luma_bytes:start+frame_bytes] for start in range(0,len(planar),frame_bytes)
+        )
+        raw_yuv_ok = markers(native_luma, 1, expected_clip)["matches"] and min(chroma) >= 126 and max(chroma) <= 130
+        print(f"Native YUV planes: expected numbered luma; neutral chroma range {min(chroma)} to {max(chroma)}, match={raw_yuv_ok}")
         saved_reads = {
             "nativeLuma": decode(clip, "gray", 1, expected_clip, filter_name="extractplanes=y", ignore_editlist=True),
             "rgb": decode(clip, "rgb24", 3, expected_clip, ignore_editlist=True),
@@ -186,7 +202,7 @@ def main():
         elif not saved_reads["nativeLuma"]["matches"]:
             outcome = "luma-readback-discrepancy"
         elif not source_reads["rgb"]["matches"] or not saved_reads["rgb"]["matches"]:
-            outcome = "RGB-readback-discrepancy"
+            outcome = "saved-YUV-exact-RGB-converter-discrepancy" if raw_yuv_ok else "RGB-readback-discrepancy"
         elif not all(result["matches"] for result in source_reads.values()):
             outcome = "source-readback-discrepancy"
         else:
@@ -194,7 +210,7 @@ def main():
     report["outcome"] = outcome
     (output / "diagnostic.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Outcome: {outcome}")
-    return int(outcome != "all-marker-readbacks-exact")
+    return int(outcome not in {"all-marker-readbacks-exact", "saved-YUV-exact-RGB-converter-discrepancy"})
 
 
 if __name__ == "__main__":
