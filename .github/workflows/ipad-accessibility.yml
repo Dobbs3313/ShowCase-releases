@@ -14,15 +14,15 @@ jobs:
     timeout-minutes: 18
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-      CANDIDATE_RELEASE: '448466733'
-      CANDIDATE_TAG: 'qa-ios27-ipad-ax-20261117-candidate-b30'
-      CANDIDATE_ASSET: '758605602'
-      CANDIDATE_SHA256: 'a5f4bf2d78259ac57b2559774d18d189362fe0d7896a251830d5529e0af0ecca'
-      CANDIDATE_BYTES: '126848566'
+      CANDIDATE_RELEASE: '448476777'
+      CANDIDATE_TAG: 'qa-ios27-ipad-ax-20261117-candidate-retest-b30'
+      CANDIDATE_ASSET: '758632848'
+      CANDIDATE_SHA256: 'bc65617bd408983df19277f93ab778e15b1ca3d33610e59ba95c035f534f62e0'
+      CANDIDATE_BYTES: '126852167'
       CANDIDATE_BUILD: '30'
       CANDIDATE_APP_SHA256: '2b052ee8572245f29ce7ae0861a65ed706f9ca58723d70bc9aae3774596b030a'
       TEST_METHOD: 'testTabletGuideAndWorkspaceExposeNavigationActions'
-      QA_PHASE: 'candidate'
+      QA_PHASE: 'candidate-retest'
     steps:
       - name: Verify and extract the private simulator bundle
         env:
