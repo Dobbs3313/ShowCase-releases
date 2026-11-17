@@ -1,0 +1,105 @@
+name: ShowCase iPhone build 30 exact QA
+
+on:
+  push:
+    branches:
+      - codex/showcase-ios30-iphone-core-qa-apkogu
+
+permissions:
+  contents: write
+
+jobs:
+  iphone-core:
+    runs-on: xcode-27
+    timeout-minutes: 23
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      CANDIDATE_RELEASE: '448509119'
+      CANDIDATE_TAG: 'qa-ios30-iphone-core-20261117-apkogu'
+      CANDIDATE_ASSET: '758708279'
+      CANDIDATE_SHA256: '87625bd5efb6b015cadf0dae58d5fd469970124a26a8af7a50f4f6478351b406'
+      CANDIDATE_BYTES: '126866525'
+      CANDIDATE_BUILD: '30'
+      CANDIDATE_APP_SHA256: '2b052ee8572245f29ce7ae0861a65ed706f9ca58723d70bc9aae3774596b030a'
+    steps:
+      - name: Verify and extract the private simulator bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
+          test "$(uname -m)" = arm64
+          xcodebuild -version | grep -Fx 'Build version 27B52'
+          gh api "repos/$GITHUB_REPOSITORY/releases/$CANDIDATE_RELEASE" |
+            jq -e --arg tag "$CANDIDATE_TAG" --arg sha "sha256:$CANDIDATE_SHA256" \
+              --argjson asset "$CANDIDATE_ASSET" --argjson bytes "$CANDIDATE_BYTES" '
+              .draft and .tag_name == $tag
+              and any(.assets[]; .id == $asset and .digest == $sha and .size == $bytes)
+            ' >/dev/null
+          work="$RUNNER_TEMP/showcase-ios30-iphone-core"
+          mkdir -m 700 "$work"
+          cd "$work"
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/$GITHUB_REPOSITORY/releases/assets/$CANDIDATE_ASSET" > simulator.zip
+          printf '%s  %s\n' "$CANDIDATE_SHA256" simulator.zip | shasum -a 256 -c -
+          ditto -x -k simulator.zip .
+          printf '%s  %s\n' "$CANDIDATE_APP_SHA256" Runner.app/Frameworks/App.framework/App | shasum -a 256 -c -
+          xcrun lipo -verify_arch arm64 Runner.app/Runner
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' Runner.app/Info.plist)" = com.arisparty.showcase
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Runner.app/Info.plist)" = "$CANDIDATE_BUILD"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Runner.app/Info.plist)" = 1.1.3
+          xcrun vtool -show-build Runner.app/Runner | grep -F IOSSIMULATOR
+      - name: Run the iPhone tutorial, preview, and persistence journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/showcase-ios30-iphone-core"
+          runtime=com.apple.CoreSimulator.SimRuntime.iOS-27-2
+          device_type="$(xcrun simctl list -j devicetypes | jq -er '.devicetypes[] | select(.name=="iPhone 18 Pro") | .identifier')"
+          xcrun simctl list -j runtimes | jq -e --arg runtime "$runtime" \
+            'any(.runtimes[]; .identifier == $runtime and .isAvailable)' >/dev/null
+          device="$(xcrun simctl create "ShowCase iPhone Build 30 QA" "$device_type" "$runtime")"
+          cleanup() {
+            xcrun simctl shutdown "$device" || true
+            xcrun simctl delete "$device"
+            xcrun simctl list -j devices | jq -e --arg device "$device" \
+              'all(.devices[][]; .udid != $device)' >/dev/null
+            echo 'Owned iPhone simulator deleted'
+          }
+          trap cleanup EXIT
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b > boot.log 2>&1
+          echo 'Disposable iPhone simulator booted'
+          xcrun simctl install "$device" Runner.app
+          echo 'ShowCase simulator app installed'
+          status=0
+          xcodebuild test-without-building -xctestrun Harness/Tests.xctestrun \
+            -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO \
+            -only-testing:ShowCaseTestFlightUITests/ShowCaseDistributionUITests/testDistributionTrialPreparationSmoke \
+            -resultBundlePath tutorial.xcresult > tutorial.log 2>&1 || status=$?
+          grep -E 'Test Case.*(started|passed|failed)|Executed [0-9]+ tests?|\*\* TEST (SUCCEEDED|FAILED)|QA compact|QA restored|error:.*(Simulator|did not|failed|XCTAssert)' tutorial.log | tail -30 || true
+          if test -d tutorial.xcresult; then
+            xcrun xcresulttool get test-results summary --path tutorial.xcresult --compact |
+              jq '{result,totalTestCount,passedTests,failedTests,devices:[.devicesAndConfigurations[]?.device|{modelName,osVersion}]}'
+          fi
+          test "$status" = 0
+          grep -Eq 'Executed 1 test, with 0 failures' tutorial.log
+      - name: Retain the synthetic snapshots in the private draft
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/showcase-ios30-iphone-core"
+          test -f "$work/tutorial.log" || exit 0
+          test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases/$CANDIDATE_RELEASE")"
+          jq -e --arg tag "$CANDIDATE_TAG" '.draft and .tag_name == $tag' <<< "$release" >/dev/null
+          cd "$work"
+          archive="synthetic-iphone-build30-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.tar.gz"
+          files=(boot.log tutorial.log)
+          if test -d tutorial.xcresult; then files+=(tutorial.xcresult); fi
+          tar -czf "$archive" "${files[@]}"
+          gh release upload "$CANDIDATE_TAG" "$archive" --repo "$GITHUB_REPOSITORY"
