@@ -11,17 +11,17 @@ permissions:
 jobs:
   tutorial:
     runs-on: xcode-27
-    timeout-minutes: 14
+    timeout-minutes: 18
     strategy:
       fail-fast: false
       matrix:
         layout: [phone, tablet]
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-      CANDIDATE_SHA256: '6c29e0e6fc05232bbb1a4394de31121917f9fd94e17a52cf04ac6c1cf1f831b8'
-      CANDIDATE_RELEASE: '448379552'
-      CANDIDATE_ASSET: '758397806'
-      CANDIDATE_BYTES: '126857762'
+      CANDIDATE_SHA256: '59ab5152ec5d5cd558fe0f6a6e66acca8919ffd789ac6b0535beba6cff2d8291'
+      CANDIDATE_RELEASE: '448402349'
+      CANDIDATE_ASSET: '758432711'
+      CANDIDATE_BYTES: '126845219'
     steps:
       - name: Confirm the candidate and fetch the private simulator bundle
         env:
@@ -35,7 +35,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases/$CANDIDATE_RELEASE" |
             jq -e --arg sha "sha256:$CANDIDATE_SHA256" \
               --argjson asset "$CANDIDATE_ASSET" --argjson bytes "$CANDIDATE_BYTES" '
-              .draft and .tag_name == "qa-ios27-tutorial-20261117-b28"
+              .draft and .tag_name == "qa-ios27-compact-20261117-b29"
               and any(.assets[]; .id == $asset and .digest == $sha and .size == $bytes)
             ' > /dev/null
           work="$RUNNER_TEMP/showcase-ios27"
@@ -48,7 +48,7 @@ jobs:
           xcrun lipo -verify_arch arm64 Runner.app/Runner
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' Runner.app/Info.plist)" = com.arisparty.showcase
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Runner.app/Info.plist)" = 1.1.3
-          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Runner.app/Info.plist)" = 28
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Runner.app/Info.plist)" = 29
       - name: Run the normal tutorial and confirm a new matter persists
         env:
           LAYOUT: ${{ matrix.layout }}
@@ -103,10 +103,10 @@ jobs:
           test -f "$work/tutorial.log" || exit 0
           test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
           release="$(gh api "repos/$GITHUB_REPOSITORY/releases/$CANDIDATE_RELEASE")"
-          jq -e '.draft and .tag_name == "qa-ios27-tutorial-20261117-b28"' <<< "$release" >/dev/null
+          jq -e '.draft and .tag_name == "qa-ios27-compact-20261117-b29"' <<< "$release" >/dev/null
           cd "$work"
           archive="synthetic-ios-$LAYOUT-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.tar.gz"
           files=(boot.log tutorial.log)
           if test -d tutorial.xcresult; then files+=(tutorial.xcresult); fi
           tar -czf "$archive" "${files[@]}"
-          gh release upload qa-ios27-tutorial-20261117-b28 "$archive" --repo "$GITHUB_REPOSITORY"
+          gh release upload qa-ios27-compact-20261117-b29 "$archive" --repo "$GITHUB_REPOSITORY"
