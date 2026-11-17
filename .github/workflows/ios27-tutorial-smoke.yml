@@ -18,10 +18,10 @@ jobs:
         layout: [phone, tablet]
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-      CANDIDATE_SHA256: '87e35d433d4b1cbaa0d1210b46819f2e6631a5bc26d6ddb91de882426c7de566'
+      CANDIDATE_SHA256: '6c29e0e6fc05232bbb1a4394de31121917f9fd94e17a52cf04ac6c1cf1f831b8'
       CANDIDATE_RELEASE: '448379552'
-      CANDIDATE_ASSET: '758366596'
-      CANDIDATE_BYTES: '126851443'
+      CANDIDATE_ASSET: '758397806'
+      CANDIDATE_BYTES: '126857762'
     steps:
       - name: Confirm the candidate and fetch the private simulator bundle
         env:
@@ -72,9 +72,12 @@ jobs:
             xcrun simctl delete "$device" || true
           }
           trap cleanup EXIT
+          printf "Starting a clean %s simulator\n" "$LAYOUT"
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b > boot.log 2>&1
+          printf "Simulator booted\n"
           xcrun simctl install "$device" Runner.app
+          printf "Simulator app installed\n"
           status=0
           xcodebuild test-without-building -xctestrun Harness/Tests.xctestrun \
             -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO \
@@ -87,3 +90,23 @@ jobs:
           fi
           test "$status" = 0
           grep -Eq 'Executed 1 test, with 0 failures' tutorial.log
+
+      - name: Save synthetic XCTest evidence to the private draft
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAYOUT: ${{ matrix.layout }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/showcase-ios27"
+          test -f "$work/tutorial.log" || exit 0
+          test "$GITHUB_REPOSITORY" = Dobbs3313/ShowCase-releases
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases/$CANDIDATE_RELEASE")"
+          jq -e '.draft and .tag_name == "qa-ios27-tutorial-20261117-b28"' <<< "$release" >/dev/null
+          cd "$work"
+          archive="synthetic-ios-$LAYOUT-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.tar.gz"
+          files=(boot.log tutorial.log)
+          if test -d tutorial.xcresult; then files+=(tutorial.xcresult); fi
+          tar -czf "$archive" "${files[@]}"
+          gh release upload qa-ios27-tutorial-20261117-b28 "$archive" --repo "$GITHUB_REPOSITORY"
