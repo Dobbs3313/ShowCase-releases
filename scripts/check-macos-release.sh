@@ -78,27 +78,52 @@ test -s "$scratch/voice.aiff"
 "$tools/whisper" --no-gpu -m "$model" -f "$scratch/voice.wav" -oj -of "$scratch/transcript" -t 2 >"$scratch/transcription.log" 2>&1
 jq -e 'any(.transcription[]; (.text|length>0) and (.offsets.to>.offsets.from))' "$scratch/transcript.json" >/dev/null
 
-python3 - "$scratch/numbered.rgb" <<'PYFIXTURE'
+python3 - "$scratch/numbered.yuv" <<'PYFIXTURE'
 from pathlib import Path
 import sys
 
-width, height = 64, 48
+width, height = 192, 128
+chroma = bytes([128]) * (width * height // 2)
 with Path(sys.argv[1]).open('wb') as stream:
     for frame_number in range(120):
-        frame = bytearray([112, 112, 112] * (width * height))
+        luma = bytearray([112]) * (width * height)
         for bit in range(8):
-            level = 240 if frame_number & (1 << bit) else 12
-            for y in range(8, 14):
-                for x in range(3 + bit * 7, 8 + bit * 7):
-                    offset = (y * width + x) * 3
-                    frame[offset:offset + 3] = bytes([level] * 3)
-        stream.write(frame)
+            level = 235 if frame_number & (1 << bit) else 16
+            for y in range(12, 24):
+                for x in range(6 + bit * 14, 18 + bit * 14):
+                    luma[y * width + x] = level
+        stream.write(luma)
+        stream.write(chroma)
 PYFIXTURE
-"$tools/ffmpeg" -v error -f rawvideo -pixel_format rgb24 -video_size 64x48 -framerate 30 \
-  -i "$scratch/numbered.rgb" -i "$scratch/voice.aiff" \
-  -t 4 -c:v ffv1 -ar 48000 -c:a pcm_s16le "$scratch/source.avi"
-"$tools/ffprobe" -v error -select_streams v:0 -show_entries stream=time_base -of json "$scratch/source.avi" |
-  jq -e '.streams[0].time_base=="1/30"' >/dev/null
+cat > "$scratch/read-frames.py" <<'PYREAD'
+from pathlib import Path
+import sys
+
+path, first, last = sys.argv[1:]
+width, height = 192, 128
+frame_bytes = width * height * 3 // 2
+raw = Path(path).read_bytes()
+assert len(raw) % frame_bytes == 0
+indices = []
+for start in range(0, len(raw), frame_bytes):
+    index = 0
+    for bit in range(8):
+        location = start + 18 * width + 11 + bit * 14
+        if raw[location] > 170:
+            index |= 1 << bit
+    indices.append(index)
+expected = list(range(int(first), int(last) + 1))
+assert indices == expected, f"{Path(path).name}: {indices}"
+print(f'{Path(path).name} matched all {len(expected)} expected source frames.')
+PYREAD
+"$tools/ffmpeg" -v error -f rawvideo -pixel_format yuv420p -video_size 192x128 -framerate 30 \
+  -i "$scratch/numbered.yuv" -i "$scratch/voice.aiff" \
+  -t 4 -c:v ffv1 -pix_fmt yuv420p -ar 48000 -c:a pcm_s16le "$scratch/source.avi"
+"$tools/ffprobe" -v error -select_streams v:0 -show_entries stream=time_base,pix_fmt -of json "$scratch/source.avi" |
+  jq -e '.streams[0].time_base=="1/30" and .streams[0].pix_fmt=="yuv420p"' >/dev/null
+"$tools/ffmpeg" -v error -i "$scratch/source.avi" -map 0:v:0 \
+  -fps_mode:v passthrough -pix_fmt yuv420p -f rawvideo "$scratch/decoded-source.yuv"
+python3 "$scratch/read-frames.py" "$scratch/decoded-source.yuv" 0 119
 "$tools/ffmpeg" -v error -nostdin -copyts -start_at_zero -ss 1 -noaccurate_seek -i "$scratch/source.avi" \
   -map 0:v:0 -map '0:a?' -map_chapters -1 \
   -vf 'settb=1/1000000000,trim=start=2.206000:end=2.857000,setpts=PTS-2.206000/TB' \
@@ -110,24 +135,6 @@ PYFIXTURE
     and any(.streams[]; .codec_type=="audio" and .codec_name=="aac")
     and ((.format.duration|tonumber) >= 0.63 and (.format.duration|tonumber) <= 0.70)' >/dev/null
 "$tools/ffmpeg" -v error -ignore_editlist 1 -i "$scratch/clip.mp4" -map 0:v:0 \
-  -fps_mode:v passthrough -pix_fmt rgb24 -f rawvideo "$scratch/decoded.rgb"
-python3 - "$scratch/decoded.rgb" <<'PYREAD'
-from pathlib import Path
-import sys
-
-width, height = 64, 48
-frame_bytes = width * height * 3
-raw = Path(sys.argv[1]).read_bytes()
-assert len(raw) % frame_bytes == 0
-indices = []
-for start in range(0, len(raw), frame_bytes):
-    index = 0
-    for bit in range(8):
-        location = start + (10 * width + 5 + bit * 7) * 3
-        if sum(raw[location:location + 3]) > 400:
-            index |= 1 << bit
-    indices.append(index)
-assert indices == list(range(67, 86)), indices
-print('Clip contained precisely the selected 19 source frames.')
-PYREAD
+  -fps_mode:v passthrough -pix_fmt yuv420p -f rawvideo "$scratch/decoded-clip.yuv"
+python3 "$scratch/read-frames.py" "$scratch/decoded-clip.yuv" 67 85
 echo 'Exact bundled tools verified timestamped offline transcription and precise clip extraction from AVI.'
