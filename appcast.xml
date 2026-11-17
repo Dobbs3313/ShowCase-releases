@@ -16,5 +16,18 @@
                        length="162925204"
                        type="application/octet-stream" />
         </item>
+        <item>
+            <title>Version 1.1.3</title>
+            <sparkle:version>26</sparkle:version>
+            <sparkle:shortVersionString>1.1.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.15.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.3</sparkle:releaseNotesLink>
+            <pubDate>Tue, 17 Nov 2026 00:20:56 +0000</pubDate>
+            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.3/ShowCase-macOS-universal.zip"
+                       sparkle:edSignature="/Tt9I4Wc+PdyF8gma+2/tXJeRThcO5s0MMApRkmqGb0LINjV3WRCO8OkQ4L9tloxeOIWOX4Y/O9VnGr8D01fAg=="
+                       sparkle:os="macos"
+                       length="287927244"
+                       type="application/octet-stream" />
+        </item>
     </channel>
 </rss>
