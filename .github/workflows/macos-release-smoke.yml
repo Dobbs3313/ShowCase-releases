@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
     env:
-      CANDIDATE_SHA256: 9754c7efb722ae5948df2070597e8812968c2afbe8a0dbda9124079d36fc9e18
+      CANDIDATE_SHA256: f14aef3c6a7b7da9d487f96c6b34c10831fe1e32ceb2fda9d1d2d10fd293d9b7
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
@@ -38,13 +38,13 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases/448491034" |
             jq -e --arg digest "sha256:$CANDIDATE_SHA256" '
               .draft and .tag_name=="v1.1.7"
-              and any(.assets[]; .id==758668990 and .digest==$digest and .size==287490183)
+              and any(.assets[]; .id==758730907 and .digest==$digest and .size==287488684)
             ' >/dev/null
           work="$RUNNER_TEMP/showcase-release"
           mkdir -p "$work"
           cd "$work"
           gh api --header 'Accept: application/octet-stream' \
-            "repos/$GITHUB_REPOSITORY/releases/assets/758668990" > ShowCase-macOS-universal.zip
+            "repos/$GITHUB_REPOSITORY/releases/assets/758730907" > ShowCase-macOS-universal.zip
           printf '%s  %s\n' "$CANDIDATE_SHA256" ShowCase-macOS-universal.zip | shasum -a 256 -c -
           /usr/bin/ditto -x -k ShowCase-macOS-universal.zip .
       - name: Check the signed app and offline media on this host
@@ -55,9 +55,10 @@ jobs:
         run: |
           bash scripts/check-macos-release.sh "$RUNNER_TEMP/showcase-release/ShowCase.app" \
             "$EXPECTED_ARCHITECTURE" "$EXPECTED_MAJOR"
-      - name: Check RGB and native pixel decoding on Intel
-        if: matrix.architecture == 'x86_64'
+      - name: Check the precise BGR0 export and native chroma
+        env:
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
         shell: bash
         run: |
           python3 scripts/diagnose-rgb-clip.py "$RUNNER_TEMP/showcase-release/ShowCase.app" \
-            "$RUNNER_TEMP/showcase-color-diagnostic" --arch x86_64
+            "$RUNNER_TEMP/showcase-color-diagnostic" --arch "$EXPECTED_ARCHITECTURE"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Triage the 64×48 FFV1/RGB fixture from macOS smoke run 44048968713."""
+"""Verify chroma and frame timing for the precise macOS BGR0 clip path."""
 
 import argparse
 from hashlib import sha256 as sha256_bytes
@@ -155,7 +155,8 @@ def main():
             tool(
                 "ffmpeg", "-v", "error", "-nostdin", "-copyts", "-start_at_zero", "-ss", "1",
                 "-noaccurate_seek", "-i", str(source), "-map", "0:v:0", "-map", "0:a?", "-map_chapters", "-1",
-                "-vf", "settb=1/1000000000,trim=start=2.206000:end=2.857000,setpts=PTS-2.206000/TB",
+                "-vf", "settb=1/1000000000,trim=start=2.206000:end=2.857000,setpts=PTS-2.206000/TB,"
+                "scale=iw:ih:flags=bilinear+accurate_rnd+bitexact,format=yuv420p",
                 "-filter:a:0", "atrim=start_pts=105888:end_pts=137136,asetpts=PTS-2.206000/TB",
                 "-fps_mode:v", "passthrough", "-enc_time_base:v", "1:60000", "-c:v", "mpeg4", "-b:v", "8M",
                 "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(clip),
@@ -201,8 +202,10 @@ def main():
             outcome = "saved-image-or-shared-decoder-failed"
         elif not saved_reads["nativeLuma"]["matches"]:
             outcome = "luma-readback-discrepancy"
+        elif not raw_yuv_ok:
+            outcome = "chroma-readback-discrepancy"
         elif not source_reads["rgb"]["matches"] or not saved_reads["rgb"]["matches"]:
-            outcome = "saved-YUV-exact-RGB-converter-discrepancy" if raw_yuv_ok else "RGB-readback-discrepancy"
+            outcome = "RGB-readback-discrepancy"
         elif not all(result["matches"] for result in source_reads.values()):
             outcome = "source-readback-discrepancy"
         else:
@@ -210,7 +213,7 @@ def main():
     report["outcome"] = outcome
     (output / "diagnostic.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Outcome: {outcome}")
-    return int(outcome not in {"all-marker-readbacks-exact", "saved-YUV-exact-RGB-converter-discrepancy"})
+    return int(outcome != "all-marker-readbacks-exact")
 
 
 if __name__ == "__main__":
