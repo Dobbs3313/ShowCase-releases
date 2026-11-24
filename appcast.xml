@@ -5,15 +5,15 @@
         <description>Most recent updates to ShowCase</description>
         <language>en</language>
         <item>
-            <title>Version 1.1.7</title>
-            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.7</sparkle:releaseNotesLink>
-            <pubDate>Tue, 17 Nov 2026 11:20:34 +0000</pubDate>
-            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.7/ShowCase-Windows-x64-Setup.exe"
-                       sparkle:dsaSignature="MEYCIQCaIflgwpjpRkiBwKDhr+wY2UWUsFTjTPOPT+2l/lN9TAIhAMchJ/HokkHzCRZhyY2wfnwNrOf6U42vqBIlk6S0yYNg"
-                       sparkle:version="1.1.7+30"
-                       sparkle:shortVersionString="1.1.7"
+            <title>Version 1.1.8</title>
+            <sparkle:releaseNotesLink>https://github.com/Dobbs3313/ShowCase-releases/releases/tag/v1.1.8</sparkle:releaseNotesLink>
+            <pubDate>Tue, 24 Nov 2026 18:14:21 +0000</pubDate>
+            <enclosure url="https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.8/ShowCase-Windows-x64-Setup.exe"
+                       sparkle:dsaSignature="MEYCIQCdxKua3lCSNyBpmPyhlC5k1vMymflWGfGwwQe6zC1jrwIhAM1yKUW0GWeyFSDiOIBsTLsRym7EVK65rTELb1WVxX78"
+                       sparkle:version="1.1.8+31"
+                       sparkle:shortVersionString="1.1.8"
                        sparkle:os="windows"
-                       length="192433536"
+                       length="226397392"
                        type="application/octet-stream" />
         </item>
         <item>
