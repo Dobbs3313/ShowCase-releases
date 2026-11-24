@@ -77,7 +77,8 @@ def main():
             click(locate(window, "^Import Files$"))
             locate(window, "Demo Mode includes tutorials and the bundled sample case")
             click(locate(window, "^ShowCase Subscription$"))
-            locate(window, "Sign in|Create an account")
+            locate(window, "^Continue with Google$")
+            locate(window, "^Email$")
         else:
             try:
                 click(locate(window, "^(Skip for now|Exit)$", seconds=5))
@@ -85,7 +86,8 @@ def main():
                 pass
             click(locate(window, "^App Options$"))
             click(locate(window, "^Subscription & Offline Access$"))
-            locate(window, "Sign in|Create an account")
+            locate(window, "^Continue with Google$")
+            locate(window, "^Email$")
         print(f"Completed {args.phase} Windows application acceptance.")
     finally:
         if process.poll() is None:
