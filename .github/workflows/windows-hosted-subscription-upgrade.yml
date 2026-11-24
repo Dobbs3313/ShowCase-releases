@@ -1,0 +1,39 @@
+name: Verify Windows subscription upgrade
+on:
+  push:
+    branches: [codex/showcase-windows-entitlement-acceptance]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  upgrade:
+    runs-on: windows-2025
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Install public 1.1.7 in the disposable Windows user profile
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = "$env:RUNNER_TEMP/previous.exe"
+          Invoke-WebRequest 'https://github.com/Dobbs3313/ShowCase-releases/releases/download/v1.1.7/ShowCase-Windows-x64-Setup.exe' -OutFile $file
+          if ((Get-FileHash $file).Hash -ne '5ff83da2a7cd7341bede802ef0ee08616373ae4a88ba944892194583a3e72710' -or (Get-AuthenticodeSignature $file).Status -ne 'Valid') { throw 'Unexpected public installer.' }
+          $result = Start-Process $file -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Baseline installer exit $($result.ExitCode)." }
+          python -m pip --disable-pip-version-check install pywinauto==0.6.9
+          if ($LASTEXITCODE) { throw 'Windows UI Automation dependency setup failed.' }
+      - name: Create a real local matter with the public app
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs/ShowCase/litigation_tool.exe'
+          if (!(Test-Path $exe)) { throw 'Fixed per-user installation path is missing.' }
+          python tool/windows_qa/subscription_upgrade.py old $exe "$env:RUNNER_TEMP/previous.png"
+      - name: Retain the disposable profile screenshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-upgrade-screens
+          path: ${{ runner.temp }}/*.png
+          retention-days: 7
