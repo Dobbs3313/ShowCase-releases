@@ -3,6 +3,7 @@
 import argparse
 import re
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from pywinauto import Desktop, keyboard
 
 
 CASE = "ShowCase upgrade acceptance matter"
+EXHIBIT = "Upgrade fixture exhibit.txt"
 
 
 def elements(window):
@@ -50,7 +52,17 @@ def main():
             locate(window, "^Case Name$")
             keyboard.send_keys(CASE, with_spaces=True)
             click(locate(window, "^Create$"))
-            locate(window, re.escape(CASE))
+            click(locate(window, re.escape(CASE)))
+            click(locate(window, r"^Evidence(?:\n.*)?$"))
+            click(locate(window, "^Import Files$"))
+            dialog = Desktop(backend="win32").window(class_name="#32770", process=process.pid)
+            dialog.wait("visible ready", timeout=25)
+            fixture = Path(tempfile.gettempdir(), EXHIBIT)
+            fixture.write_text("Fictional evidence for the Windows upgrade test.", encoding="utf-8")
+            dialog.set_focus()
+            keyboard.send_keys(str(fixture), with_spaces=True)
+            keyboard.send_keys("{ENTER}")
+            locate(window, re.escape(EXHIBIT))
         elif args.phase == "upgraded":
             # The current first-run guide can be dismissed without creating another case.
             try:
@@ -59,6 +71,7 @@ def main():
                 pass
             click(locate(window, re.escape(CASE)))
             click(locate(window, r"^Evidence(?:\n.*)?$"))
+            locate(window, re.escape(EXHIBIT))
             click(locate(window, "^Import Files$"))
             locate(window, "Demo Mode includes|[Ss]tart a trial|[Ss]ubscription required|[Aa]ctive access")
         else:
