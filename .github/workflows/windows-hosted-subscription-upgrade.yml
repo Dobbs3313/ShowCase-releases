@@ -7,13 +7,28 @@ permissions:
   actions: read
 jobs:
   upgrade:
+    if: github.actor == github.repository_owner && github.repository == 'Dobbs3313/ShowCase-releases'
+    permissions:
+      contents: write # GitHub requires write access to read an unpublished release.
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [clean, upgraded]
     runs-on: windows-2025
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
+      - name: Prepare the disposable interactive desktop
+        shell: pwsh
+        run: |
+          python -m pip --disable-pip-version-check install pywinauto==0.6.9 pillow
+          if ($LASTEXITCODE) { throw 'Windows UI Automation dependency setup failed.' }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs/ShowCase/litigation_tool.exe'
+          if (Test-Path $exe) { throw 'The test requires a new Windows user profile.' }
       - name: Install public 1.1.7 in the disposable Windows user profile
+        if: matrix.phase == 'upgraded'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -22,18 +37,52 @@ jobs:
           if ((Get-FileHash $file).Hash -ne '5ff83da2a7cd7341bede802ef0ee08616373ae4a88ba944892194583a3e72710' -or (Get-AuthenticodeSignature $file).Status -ne 'Valid') { throw 'Unexpected public installer.' }
           $result = Start-Process $file -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
           if ($result.ExitCode -ne 0) { throw "Baseline installer exit $($result.ExitCode)." }
-          python -m pip --disable-pip-version-check install pywinauto==0.6.9 pillow
-          if ($LASTEXITCODE) { throw 'Windows UI Automation dependency setup failed.' }
       - name: Create a real local matter with the public app
+        if: matrix.phase == 'upgraded'
         shell: pwsh
         run: |
           $exe = Join-Path $env:LOCALAPPDATA 'Programs/ShowCase/litigation_tool.exe'
           if (!(Test-Path $exe)) { throw 'Fixed per-user installation path is missing.' }
           python tool/windows_qa/subscription_upgrade.py old $exe "$env:RUNNER_TEMP/previous.png"
+          if ($LASTEXITCODE) { throw 'The baseline matter or exhibit was not created.' }
+          $dir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'cases'
+          $evidence = @(Get-ChildItem $dir -Recurse -File | Where-Object { (Get-FileHash $_).Hash -eq 'd9b2ed9a504f07bb355e4b7edc593f70515cec39434fd4c6c63a223c3f497700' })
+          if ($evidence.Count -ne 1) { throw 'Expected one saved synthetic exhibit under Documents/cases.' }
+          "PRIOR_EXHIBIT=$($evidence[0].FullName)" >> $env:GITHUB_ENV
+      - name: Install and verify the exact signed draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_ID: '788196765'
+          INSTALLER_HASH: '881d9c056e45bce18d1437a41ae8b89e4166ac8741a4e12a845671af1ba56b08'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = 'Dobbs3313/ShowCase-releases'
+          $release = gh api "repos/$repo/releases/457064008" | ConvertFrom-Json
+          $match = @($release.assets | Where-Object { $_.id -eq $env:ASSET_ID })
+          if (!$release.draft -or $release.tag_name -ne 'v1.1.8' -or $match.Count -ne 1 -or $match[0].digest -ne "sha256:$env:INSTALLER_HASH" -or $match[0].name -ne 'ShowCase-Windows-x64-Setup.exe') { throw 'Unexpected draft asset.' }
+          $exe = Join-Path $env:RUNNER_TEMP 'candidate.exe'
+          gh api -H 'Accept: application/octet-stream' "repos/$repo/releases/assets/$env:ASSET_ID" > $exe
+          if ($LASTEXITCODE -or (Get-FileHash $exe).Hash -ne $env:INSTALLER_HASH -or (Get-AuthenticodeSignature $exe).Status -ne 'Valid') { throw 'Untrusted installer.' }
+          $installed = Start-Process $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($installed.ExitCode) { throw "Installer exit $($installed.ExitCode)." }
+          $app = Get-Item (Join-Path $env:LOCALAPPDATA 'Programs/ShowCase/litigation_tool.exe')
+          if ($app.VersionInfo.FileVersionRaw.ToString() -ne '1.1.8.31' -or (Get-AuthenticodeSignature $app).Status -ne 'Valid') { throw 'Installed executable does not match the signed update.' }
+      - name: Verify subscription access in the installed app
+        shell: pwsh
+        env:
+          QA_PHASE: ${{ matrix.phase }}
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs/ShowCase/litigation_tool.exe'
+          python tool/windows_qa/subscription_upgrade.py $env:QA_PHASE $exe "$env:RUNNER_TEMP/accepted.png"
+          if ($LASTEXITCODE) { throw 'The installed subscription journey failed.' }
+          if ($env:QA_PHASE -eq 'upgraded' -and (Get-FileHash -LiteralPath $env:PRIOR_EXHIBIT).Hash -ne 'd9b2ed9a504f07bb355e4b7edc593f70515cec39434fd4c6c63a223c3f497700') { throw 'The original exhibit file was not preserved byte-for-byte.' }
       - name: Retain the disposable profile screenshot
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: windows-upgrade-screens
-          path: ${{ runner.temp }}/*.png
+          name: windows-${{ matrix.phase }}-screens
+          path: |
+            ${{ runner.temp }}/accepted.png
+            ${{ runner.temp }}/previous.png
           retention-days: 7

@@ -75,7 +75,9 @@ def main():
             click(locate(window, r"^Evidence(?:\n.*)?$"))
             locate(window, re.escape(EXHIBIT))
             click(locate(window, "^Import Files$"))
-            locate(window, "Demo Mode includes|[Ss]tart a trial|[Ss]ubscription required|[Aa]ctive access")
+            locate(window, "Demo Mode includes tutorials and the bundled sample case")
+            click(locate(window, "^ShowCase Subscription$"))
+            locate(window, "Sign in|Create an account")
         else:
             try:
                 click(locate(window, "^Exit$", seconds=5))
