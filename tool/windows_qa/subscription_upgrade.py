@@ -68,7 +68,7 @@ def main():
         elif args.phase == "upgraded":
             # The current first-run guide can be dismissed without creating another case.
             try:
-                click(locate(window, "^Exit$", seconds=5))
+                click(locate(window, "^(Skip for now|Exit)$", seconds=5))
             except RuntimeError:
                 pass
             click(locate(window, re.escape(CASE)))
@@ -80,7 +80,7 @@ def main():
             locate(window, "Sign in|Create an account")
         else:
             try:
-                click(locate(window, "^Exit$", seconds=5))
+                click(locate(window, "^(Skip for now|Exit)$", seconds=5))
             except RuntimeError:
                 pass
             click(locate(window, "^App Options$"))
