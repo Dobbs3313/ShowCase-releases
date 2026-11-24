@@ -59,9 +59,11 @@ def main():
             dialog.wait("visible ready", timeout=25)
             fixture = Path(tempfile.gettempdir(), EXHIBIT)
             fixture.write_text("Fictional evidence for the Windows upgrade test.", encoding="utf-8")
-            dialog.set_focus()
-            keyboard.send_keys(str(fixture), with_spaces=True)
-            keyboard.send_keys("{ENTER}")
+            edits = dialog.descendants(class_name="Edit")
+            file_name = next((field for field in edits if field.control_id() == 1148), edits[0])
+            file_name.set_edit_text(str(fixture))
+            dialog.child_window(control_id=1).click()
+            dialog.wait_not("visible", timeout=25)
             locate(window, re.escape(EXHIBIT))
         elif args.phase == "upgraded":
             # The current first-run guide can be dismissed without creating another case.
